@@ -14,3 +14,4 @@ class SimpleModel(models.Model):
     # Example of a computed field
     # computed_field = fields.Char(string='Computed Field', compute='_compute_computed_field',
     #                               help="A computed field that does something.")
+    test_field = fields.Char(string='Test Field', help="A test field for demonstration purposes.")
