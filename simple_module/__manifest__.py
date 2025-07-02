@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Simple Module',
-    'version': '1.0',
+    'version': '18.0.1.0.0',
     'summary': 'A simple Odoo module for demonstration',
-    'author': 'Your Company',
+    'author': 'Odoo Community Association (OCA)',
+    'license': 'LGPL-3',
     'category': 'Uncategorized',
     'depends': ['base'],
     'data': [

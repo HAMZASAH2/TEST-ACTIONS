@@ -5,9 +5,9 @@ class SimpleModel(models.Model):
     _name = 'simple.model'
     _description = 'Simple Model'
 
-    name = fields.Char(string='Name', required=True, help="The name of the record.")
-    description = fields.Text(string='Description', help="A description for the record.")
-    active = fields.Boolean(string='Active', default=True, help="Indicates if the record is active.")
+    name = fields.Char(required=True, help="The name of the record.")
+    description = fields.Text(help="A description for the record.")
+    active = fields.Boolean(default=True, help="Indicates if the record is active.")
     # Add any additional fields or methods as needed
     # This model can be extended with more fields or methods as required
     # For example, you can add computed fields, constraints, or business logic methods
