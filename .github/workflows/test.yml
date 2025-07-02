@@ -94,7 +94,8 @@ jobs:
                 werkzeug \
                 xlsxwriter \
                 xlwt \
-                zeep
+                zeep \
+                pytz
             }
             
             # Make Odoo importable
