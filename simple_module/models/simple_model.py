@@ -16,3 +16,4 @@ class SimpleModel(models.Model):
     #                               help="A computed field that does something.")
     test_field = fields.Char(string='Test Field', help="A test field for demonstration purposes.")
     gta = fields.Char(string='GTA', help="A field for GTA purposes.")
+    sdsd = fields.Char(string='SDSD', help="A field for SDSD purposes.")
