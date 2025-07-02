@@ -15,3 +15,4 @@ class SimpleModel(models.Model):
     # computed_field = fields.Char(string='Computed Field', compute='_compute_computed_field',
     #                               help="A computed field that does something.")
     test_field = fields.Char(string='Test Field', help="A test field for demonstration purposes.")
+    gta = fields.Char(string='GTA', help="A field for GTA purposes.")
