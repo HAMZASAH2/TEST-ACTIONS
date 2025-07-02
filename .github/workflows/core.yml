@@ -6,11 +6,12 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  jobs:
-    discover-modules:
-      runs-on: ubuntu-22.04
-      outputs:
-        modules: ${{ steps.discover.outputs.modules }}
+
+jobs:
+  discover-modules:
+    runs-on: ubuntu-22.04
+    outputs:
+      modules: ${{ steps.discover.outputs.modules }}
       steps:
         - uses: actions/checkout@v4
           with:
