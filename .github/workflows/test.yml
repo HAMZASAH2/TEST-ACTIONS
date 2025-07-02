@@ -159,11 +159,11 @@ jobs:
       - name: Run Odoo pylint on module
         id: pylint
         run: |
-          if [ -d "TEST-ACTIONS/simple_module" ]; then
+          if [ -d "simple_module" ]; then
             # Run pylint with Odoo-specific configuration
             pylint_output=$(pylint --load-plugins=pylint_odoo \
               --rcfile=.pylintrc \
-              TEST-ACTIONS/simple_module \
+              simple_module \
               --exit-zero \
               --output-format=text | tee pylint.log)
             
@@ -178,7 +178,7 @@ jobs:
               exit 1
             fi
           else
-            echo "::warning::Module directory TEST-ACTIONS/simple_module not found, skipping pylint"
+            echo "::warning::Module directory simple_module not found, skipping pylint"
           fi
           
       - name: Generate Odoo configuration
@@ -203,7 +203,7 @@ jobs:
           
       - name: Run Odoo tests
         run: |
-          if [ -d "TEST-ACTIONS/simple_module" ]; then
+          if [ -d "simple_module" ]; then
             python3 /tmp/odoo/odoo-bin \
               -c odoo.conf \
               -d test_db \
