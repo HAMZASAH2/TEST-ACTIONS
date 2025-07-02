@@ -46,6 +46,14 @@ jobs:
             echo "::error ::Pylint score is below 5. Cancelling workflow."
             exit 1
           fi
+      - name: Generate minimal odoo.conf
+        run: |
+          echo "[options]" > odoo.conf
+          echo "db_host = localhost" >> odoo.conf
+          echo "db_port = 5432" >> odoo.conf
+          echo "db_user = postgres" >> odoo.conf
+          echo "db_password = " >> odoo.conf
+          echo "addons_path = /tmp/odoo/addons,TEST-ACTIONS/simple_module" >> odoo.conf
       - name: Run Odoo unit tests
         run: |
           python3 /tmp/odoo/odoo-bin -c odoo.conf -d test_db --init=TEST-ACTIONS/simple_module --test-enable --stop-after-init
