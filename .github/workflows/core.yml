@@ -168,6 +168,7 @@ jobs:
   run-odoo-tests:
     runs-on: ubuntu-22.04
     needs: detect-changed-modules
+    stops-on-error: false
     if: needs.detect-changed-modules.outputs.changed_modules != ''
     services:
       postgres:
