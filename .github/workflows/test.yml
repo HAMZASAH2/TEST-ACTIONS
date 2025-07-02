@@ -34,9 +34,9 @@ jobs:
           # Install Odoo dependencies (example for Odoo 18, adjust as needed)
           pip install wheel setuptools
           git clone --depth 1 --branch 18.0 https://github.com/odoo/odoo.git /tmp/odoo
-          # Remove problematic gevent version from requirements
-          grep -v '^gevent==21.8.0' /tmp/odoo/requirements.txt > /tmp/odoo/requirements-no-gevent.txt
-          pip install -r /tmp/odoo/requirements-no-gevent.txt
+          # Remove problematic gevent and python-ldap versions from requirements
+          grep -v '^gevent==21.8.0' /tmp/odoo/requirements.txt | grep -v '^python-ldap' > /tmp/odoo/requirements-no-gevent-ldap.txt
+          pip install -r /tmp/odoo/requirements-no-gevent-ldap.txt
       - name: Run pylint on simple_module
         id: pylint
         run: |
