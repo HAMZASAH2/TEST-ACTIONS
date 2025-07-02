@@ -161,6 +161,43 @@ jobs:
             echo "✅ $module validation passed"
           done
           
+      - name: Create pylint configuration
+        if: steps.changed.outputs.changed_modules != ''
+        run: |
+          echo "⚙️ Creating pylint configuration..."
+          
+          cat > .pylintrc << EOF
+          [MASTER]
+          load-plugins=pylint_odoo
+          score=y
+          
+          [ODOOLINT]
+          readme_template_url="https://github.com/OCA/maintainer-tools/blob/master/template/module/README.rst"
+          manifest_required_authors=True
+          manifest_required_keys=name,author,website,license
+          manifest_deprecated_keys=description,active
+          
+          [MESSAGES CONTROL]
+          disable=all
+          enable=odoolint,
+                 anomalous-backslash-in-string,
+                 dangerous-default-value,
+                 duplicate-key,
+                 missing-import-error,
+                 missing-manifest-dependency,
+                 pointless-statement,
+                 print-statement,
+                 redundant-keyword-arg,
+                 reimported,
+                 relative-import,
+                 unused-argument,
+                 unused-variable,
+                 wrong-import-order
+          
+          [REPORTS]
+          reports=no
+          EOF
+          
       - name: Run pylint on changed modules
         if: steps.changed.outputs.changed_modules != ''
         run: |
@@ -170,7 +207,7 @@ jobs:
             echo "🧪 Linting $module..."
             
             pylint_output=$(pylint --load-plugins=pylint_odoo \
-              --rcfile=/tmp/odoo/.pylintrc \
+              --rcfile=.pylintrc \
               "$module" \
               --exit-zero \
               --output-format=text)
@@ -186,6 +223,12 @@ jobs:
               # Check minimum score (6.0 for faster feedback)
               if (( $(echo "$score < 6.0" | bc -l) )); then
                 echo "❌ $module failed pylint check (score: $score < 6.0)"
+                exit 1
+              fi
+            else
+              echo "ℹ️ No pylint score found for $module, checking for critical errors..."
+              if echo "$pylint_output" | grep -q "E:"; then
+                echo "❌ $module has critical errors"
                 exit 1
               fi
             fi
