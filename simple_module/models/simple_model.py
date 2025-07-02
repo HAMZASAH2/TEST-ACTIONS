@@ -7,3 +7,4 @@ class SimpleModel(models.Model):
 
     name = fields.Char(string='Name', required=True, help="The name of the record.")
     description = fields.Text(string='Description', help="A description for the record.")
+    active = fields.Boolean(string='Active', default=True, help="Indicates if the record is active.")
