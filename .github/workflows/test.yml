@@ -91,8 +91,8 @@ jobs:
       - name: Run pylint on module
         id: pylint
         run: |
-          if [ -d "TEST-ACTIONS/simple_module" ]; then
-            pylint_output=$(pylint TEST-ACTIONS/simple_module --exit-zero --output-format=text | tee pylint.log)
+          if [ -d "simple_module" ]; then
+            pylint_output=$(pylint simple_module --exit-zero --output-format=text | tee pylint.log)
             pylint_score=$(echo "$pylint_output" | grep 'Your code has been rated at' | awk '{print $7}' | cut -d'/' -f1)
             
             echo "Pylint score: $pylint_score"
@@ -104,7 +104,7 @@ jobs:
               exit 1
             fi
           else
-            echo "::warning::Module directory TEST-ACTIONS/simple_module not found, skipping pylint"
+            echo "::warning::Module directory simple_module not found, skipping pylint"
           fi
           
       - name: Generate Odoo configuration
@@ -129,7 +129,7 @@ jobs:
           
       - name: Run Odoo tests
         run: |
-          if [ -d "TEST-ACTIONS/simple_module" ]; then
+          if [ -d "simple_module" ]; then
             python3 /tmp/odoo/odoo-bin \
               -c odoo.conf \
               -d test_db \
