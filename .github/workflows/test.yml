@@ -58,7 +58,7 @@ jobs:
           pip install psycopg2-binary pylint-odoo babel "lxml[html_clean]" pillow reportlab \
           python-dateutil pytz requests werkzeug jinja2 passlib decorator docutils gevent \
           greenlet markupsafe num2words ofxparse polib psutil python-stdnum qrcode \
-          vobject xlsxwriter xlwt zeep
+          vobject xlsxwriter xlwt zeep pypdf
           
       - name: Setup Odoo (cached)
         run: |
