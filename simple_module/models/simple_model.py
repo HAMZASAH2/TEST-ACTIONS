@@ -8,4 +8,4 @@ class SimpleModel(models.Model):
     name = fields.Char(required=True, help="The name of the record.")
     description = fields.Text(help="A description for the record.")
     active = fields.Boolean(default=True, help="Indicates if the record is active.")
-    
+    Text = fields.Text(string='Text Field', help="A simple text field for demonstration purposes.")
