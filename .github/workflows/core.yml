@@ -12,252 +12,266 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       modules: ${{ steps.discover.outputs.modules }}
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
-        - name: Discover all modules
-          id: discover
-          run: |
-            echo "🔍 Discovering Odoo modules in repository..."
-            modules=$(find . -name "__manifest__.py" -type f | sed 's|/__manifest__.py||' | sed 's|^\./||' | sort)
-            if [ -z "$modules" ]; then
-              echo "❌ No Odoo modules found in repository"
-              echo "modules=" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            echo "modules<<EOF" >> $GITHUB_OUTPUT
-            echo "$modules" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Discover all modules
+        id: discover
+        run: |
+          echo "🔍 Discovering Odoo modules in repository..."
+          modules=$(find . -name "__manifest__.py" -type f | sed 's|/__manifest__.py||' | sed 's|^\./||' | sort)
+          if [ -z "$modules" ]; then
+            echo "❌ No Odoo modules found in repository"
+            echo "modules=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "modules<<EOF" >> $GITHUB_OUTPUT
+          echo "$modules" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-    detect-changed-modules:
-      runs-on: ubuntu-22.04
-      needs: discover-modules
-      outputs:
-        changed_modules: ${{ steps.changed.outputs.changed_modules }}
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
-        - name: Set modules output
-          run: |
-            echo "${{ needs.discover-modules.outputs.modules }}" > modules.txt
-        - name: Detect changed modules
-          id: changed
-          run: |
-            echo "🔄 Detecting changed modules..."
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            else
-              BASE_SHA="HEAD~1"
+  detect-changed-modules:
+    runs-on: ubuntu-22.04
+    needs: discover-modules
+    outputs:
+      changed_modules: ${{ steps.changed.outputs.changed_modules }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set modules output
+        run: |
+          echo "${{ needs.discover-modules.outputs.modules }}" > modules.txt
+      - name: Detect changed modules
+        id: changed
+        run: |
+          echo "🔄 Detecting changed modules..."
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_SHA="HEAD~1"
+          fi
+          changed_files=$(git diff --name-only $BASE_SHA HEAD)
+          if [ -z "$changed_files" ]; then
+            echo "changed_modules=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          modules=$(cat modules.txt)
+          changed_modules=""
+          for module in $modules; do
+            if echo "$changed_files" | grep -q "^$module/"; then
+              changed_modules="$changed_modules $module"
             fi
-            changed_files=$(git diff --name-only $BASE_SHA HEAD)
-            if [ -z "$changed_files" ]; then
-              echo "changed_modules=" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            modules=$(cat modules.txt)
-            changed_modules=""
-            for module in $modules; do
-              if echo "$changed_files" | grep -q "^$module/"; then
-                changed_modules="$changed_modules $module"
-              fi
-            done
-            changed_modules=$(echo $changed_modules | xargs)
-            echo "changed_modules=$changed_modules" >> $GITHUB_OUTPUT
+          done
+          changed_modules=$(echo $changed_modules | xargs)
+          echo "changed_modules=$changed_modules" >> $GITHUB_OUTPUT
 
-    validate-changed-modules:
-      runs-on: ubuntu-22.04
-      needs: detect-changed-modules
-      if: needs.detect-changed-modules.outputs.changed_modules != ''
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
-        - name: Validate changed modules
-          run: |
-            for module in ${{ needs.detect-changed-modules.outputs.changed_modules }}; do
-              echo "📋 Validating $module..."
-              if [ ! -f "$module/__manifest__.py" ]; then
-                echo "❌ Missing __manifest__.py in $module"
+  validate-changed-modules:
+    runs-on: ubuntu-22.04
+    needs: detect-changed-modules
+    if: needs.detect-changed-modules.outputs.changed_modules != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Validate changed modules
+        run: |
+          for module in ${{ needs.detect-changed-modules.outputs.changed_modules }}; do
+            echo "📋 Validating $module..."
+            if [ ! -f "$module/__manifest__.py" ]; then
+              echo "❌ Missing __manifest__.py in $module"
+              exit 1
+            fi
+            python -m py_compile "$module/__manifest__.py"
+            if [ ! -f "$module/__init__.py" ]; then
+              echo "⚠️ Missing __init__.py in $module"
+            fi
+            echo "✅ $module validation passed"
+          done
+
+  run-pylint:
+    runs-on: ubuntu-22.04
+    needs: detect-changed-modules
+    if: needs.detect-changed-modules.outputs.changed_modules != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint-odoo
+      - name: Create pylint configuration
+        run: |
+          cat > .pylintrc << EOF
+          [MASTER]
+          load-plugins=pylint_odoo
+          score=y
+
+          [ODOOLINT]
+          readme_template_url="https://github.com/OCA/maintainer-tools/blob/master/template/module/README.rst"
+          manifest_required_authors=True
+          manifest_required_keys=name,author,website,license
+          manifest_deprecated_keys=description,active
+
+          [MESSAGES CONTROL]
+          disable=all
+          enable=odoolint,
+                 anomalous-backslash-in-string,
+                 dangerous-default-value,
+                 duplicate-key,
+                 missing-import-error,
+                 missing-manifest-dependency,
+                 pointless-statement,
+                 print-statement,
+                 redundant-keyword-arg,
+                 reimported,
+                 relative-import,
+                 unused-argument,
+                 unused-variable,
+                 wrong-import-order
+
+          [REPORTS]
+          reports=no
+          EOF
+      - name: Run pylint on changed modules
+        run: |
+          for module in ${{ needs.detect-changed-modules.outputs.changed_modules }}; do
+            echo "🧪 Linting $module..."
+            pylint_output=$(pylint --load-plugins=pylint_odoo --rcfile=.pylintrc "$module" --exit-zero --output-format=text)
+            echo "$pylint_output"
+            score=$(echo "$pylint_output" | grep -o 'rated at [0-9.]*' | grep -o '[0-9.]*' | head -1)
+            if [ ! -z "$score" ]; then
+              echo "📊 $module pylint score: $score/10"
+              # Use awk for floating point comparison since bc might not be available
+              if awk "BEGIN {exit !($score < 6.0)}"; then
+                echo "❌ $module failed pylint check (score: $score < 6.0)"
                 exit 1
               fi
-              python -m py_compile "$module/__manifest__.py"
-              if [ ! -f "$module/__init__.py" ]; then
-                echo "⚠️ Missing __init__.py in $module"
+            else
+              echo "ℹ️ No pylint score found for $module, checking for critical errors..."
+              if echo "$pylint_output" | grep -q "E:"; then
+                echo "❌ $module has critical errors"
+                exit 1
               fi
-              echo "✅ $module validation passed"
-            done
-
-    create-pylint-config:
-      runs-on: ubuntu-22.04
-      needs: detect-changed-modules
-      if: needs.detect-changed-modules.outputs.changed_modules != ''
-      outputs:
-        config_path: .pylintrc
-      steps:
-        - name: Create pylint configuration
-          run: |
-            cat > .pylintrc << EOF
-            [MASTER]
-            load-plugins=pylint_odoo
-            score=y
-
-            [ODOOLINT]
-            readme_template_url="https://github.com/OCA/maintainer-tools/blob/master/template/module/README.rst"
-            manifest_required_authors=True
-            manifest_required_keys=name,author,website,license
-            manifest_deprecated_keys=description,active
-
-            [MESSAGES CONTROL]
-            disable=all
-            enable=odoolint,
-                   anomalous-backslash-in-string,
-                   dangerous-default-value,
-                   duplicate-key,
-                   missing-import-error,
-                   missing-manifest-dependency,
-                   pointless-statement,
-                   print-statement,
-                   redundant-keyword-arg,
-                   reimported,
-                   relative-import,
-                   unused-argument,
-                   unused-variable,
-                   wrong-import-order
-
-            [REPORTS]
-            reports=no
-            EOF
-
-    run-pylint:
-      runs-on: ubuntu-22.04
-      needs: [detect-changed-modules, create-pylint-config]
-      if: needs.detect-changed-modules.outputs.changed_modules != ''
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-        - name: Install Python dependencies
-          run: |
-            python -m pip install --upgrade pip
-            pip install pylint-odoo
-        - name: Copy pylint config
-          run: |
-            echo "${{ needs.create-pylint-config.outputs.config_path }}"
-        - name: Run pylint on changed modules
-          run: |
-            for module in ${{ needs.detect-changed-modules.outputs.changed_modules }}; do
-              echo "🧪 Linting $module..."
-              pylint_output=$(pylint --load-plugins=pylint_odoo --rcfile=.pylintrc "$module" --exit-zero --output-format=text)
-              echo "$pylint_output"
-              score=$(echo "$pylint_output" | grep -o 'rated at [0-9.]*' | grep -o '[0-9.]*' | head -1)
-              if [ ! -z "$score" ]; then
-                echo "📊 $module pylint score: $score/10"
-                if (( $(echo "$score < 6.0" | bc -l) )); then
-                  echo "❌ $module failed pylint check (score: $score < 6.0)"
-                  exit 1
-                fi
-              else
-                echo "ℹ️ No pylint score found for $module, checking for critical errors..."
-                if echo "$pylint_output" | grep -q "E:"; then
-                  echo "❌ $module has critical errors"
-                  exit 1
-                fi
-              fi
-            done
-
-    run-odoo-tests:
-      runs-on: ubuntu-22.04
-      needs: detect-changed-modules
-      if: needs.detect-changed-modules.outputs.changed_modules != ''
-      services:
-        postgres:
-          image: postgres:13
-          env:
-            POSTGRES_USER: odoo
-            POSTGRES_PASSWORD: odoo
-            POSTGRES_DB: postgres
-          options: >-
-            --health-cmd pg_isready
-            --health-interval 10s
-            --health-timeout 5s
-            --health-retries 3
-          ports:
-            - 5432:5432
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-        - name: Install minimal system dependencies
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y libpq-dev python3-dev
-        - name: Install Python dependencies
-          run: |
-            python -m pip install --upgrade pip
-            pip install psycopg2-binary babel "lxml[html_clean]" pillow reportlab \
-            python-dateutil pytz requests werkzeug jinja2 passlib decorator docutils gevent \
-            greenlet markupsafe num2words ofxparse polib psutil python-stdnum qrcode \
-            vobject xlsxwriter xlwt zeep pypdf freezegun requests  rjsmin
-        - name: Setup Odoo (cached)
-          run: |
-            if [ ! -d "/tmp/odoo" ]; then
-              git clone --depth 1 --branch 18.0 https://github.com/odoo/odoo.git /tmp/odoo
-              pip install -r /tmp/odoo/requirements.txt
             fi
-            pip install -e /tmp/odoo
-        - name: Run Odoo tests on changed modules
-          env:
-            PGPASSWORD: odoo
-          run: |
-            cat > odoo.conf << EOF
-            [options]
-            db_host = localhost
-            db_port = 5432
-            db_user = odoo
-            db_password = odoo
-            addons_path = /tmp/odoo/addons,.
-            log_level = warn
-            EOF
-            until pg_isready -h localhost -p 5432 -U odoo; do
-              sleep 1
-            done
-            for module in ${{ needs.detect-changed-modules.outputs.changed_modules }}; do
-              db_name="test_${module}_$(date +%s)"
-              timeout 300 python3 /tmp/odoo/odoo-bin \
-                -c odoo.conf \
-                -d "$db_name" \
-                --init="$module" \
-                --test-enable \
-                --stop-after-init \
-                --log-level=error \
-                || {
-                  echo "❌ Tests failed for $module"
-                  exit 1
-                }
-              psql -h localhost -U odoo -c "DROP DATABASE IF EXISTS $db_name;" postgres || true
-            done
+          done
 
-    summary:
-      runs-on: ubuntu-22.04
-      needs: [discover-modules, detect-changed-modules, validate-changed-modules, run-pylint, run-odoo-tests]
-      if: always()
-      steps:
-        - name: Summary
-          run: |
-            echo "📊 CI/CD Summary:"
-            echo "📦 Total modules found: $(echo '${{ needs.discover-modules.outputs.modules }}' | wc -w)"
-            if [ ! -z "${{ needs.detect-changed-modules.outputs.changed_modules }}" ]; then
-              echo "🎯 Changed modules tested: ${{ needs.detect-changed-modules.outputs.changed_modules }}"
+  run-odoo-tests:
+    runs-on: ubuntu-22.04
+    needs: detect-changed-modules
+    if: needs.detect-changed-modules.outputs.changed_modules != ''
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install minimal system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev python3-dev postgresql-client
+      - name: Cache Odoo installation
+        id: cache-odoo
+        uses: actions/cache@v4
+        with:
+          path: /tmp/odoo
+          key: odoo-18.0-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            odoo-18.0-${{ runner.os }}-
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install psycopg2-binary babel "lxml[html_clean]" pillow reportlab \
+          python-dateutil pytz requests werkzeug jinja2 passlib decorator docutils gevent \
+          greenlet markupsafe num2words ofxparse polib psutil python-stdnum qrcode \
+          vobject xlsxwriter xlwt zeep pypdf freezegun rjsmin
+      - name: Setup Odoo
+        if: steps.cache-odoo.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 18.0 https://github.com/odoo/odoo.git /tmp/odoo
+          pip install -r /tmp/odoo/requirements.txt
+      - name: Install Odoo
+        run: |
+          pip install -e /tmp/odoo
+      - name: Run Odoo tests on changed modules
+        env:
+          PGPASSWORD: odoo
+        run: |
+          cat > odoo.conf << EOF
+          [options]
+          db_host = localhost
+          db_port = 5432
+          db_user = odoo
+          db_password = odoo
+          addons_path = /tmp/odoo/addons,.
+          log_level = warn
+          EOF
+          until pg_isready -h localhost -p 5432 -U odoo; do
+            sleep 1
+          done
+          for module in ${{ needs.detect-changed-modules.outputs.changed_modules }}; do
+            db_name="test_${module}_$(date +%s)"
+            echo "🧪 Testing module: $module with database: $db_name"
+            timeout 300 python3 /tmp/odoo/odoo-bin \
+              -c odoo.conf \
+              -d "$db_name" \
+              --init="$module" \
+              --test-enable \
+              --stop-after-init \
+              --log-level=error \
+              || {
+                echo "❌ Tests failed for $module"
+                exit 1
+              }
+            psql -h localhost -U odoo -c "DROP DATABASE IF EXISTS \"$db_name\";" postgres || true
+            echo "✅ Tests passed for $module"
+          done
+
+  summary:
+    runs-on: ubuntu-22.04
+    needs: [discover-modules, detect-changed-modules, validate-changed-modules, run-pylint, run-odoo-tests]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "📊 CI/CD Summary:"
+          total_modules=$(echo '${{ needs.discover-modules.outputs.modules }}' | wc -w)
+          echo "📦 Total modules found: $total_modules"
+          if [ ! -z "${{ needs.detect-changed-modules.outputs.changed_modules }}" ]; then
+            echo "🎯 Changed modules tested: ${{ needs.detect-changed-modules.outputs.changed_modules }}"
+            if [ "${{ needs.validate-changed-modules.result }}" = "success" ] && \
+               [ "${{ needs.run-pylint.result }}" = "success" ] && \
+               [ "${{ needs.run-odoo-tests.result }}" = "success" ]; then
               echo "✅ All changed modules passed validation and tests"
             else
-              echo "ℹ️ No modules changed - skipping tests"
+              echo "❌ Some tests failed - check individual job results"
+              exit 1
+            fi
+          else
+            echo "ℹ️ No modules changed - skipping tests"
+          fi
