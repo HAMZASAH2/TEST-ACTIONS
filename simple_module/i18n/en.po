@@ -1,0 +1,15 @@
+# Translation for Simple Module in English
+msgid "Simple Model"
+msgstr "Simple Model"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Description"
+msgstr "Description"
+
+msgid "A description for the record."
+msgstr "A description for the record."
+
+msgid "The name of the record."
+msgstr "The name of the record."
